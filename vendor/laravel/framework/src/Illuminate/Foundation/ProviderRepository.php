@@ -146,13 +146,13 @@ class ProviderRepository
             // When recompiling the service manifest, we will spin through each of the
             // providers and check if it's a deferred provider or not. If so we'll
             // add it's provided services to the manifest and note the provider.
-            if ($instance->isDeferred()) {
+           /* if ($instance->isDeferred()) {
                 foreach ($instance->provides() as $service) {
                     $manifest['deferred'][$service] = $provider;
                 }
 
                 $manifest['when'][$provider] = $instance->when();
-            }
+            }*?/
 
             // If the service providers are not deferred, we will simply add it to an
             // array of eagerly loaded providers that will get registered on every
