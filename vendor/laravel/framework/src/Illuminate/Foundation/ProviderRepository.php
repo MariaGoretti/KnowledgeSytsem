@@ -152,7 +152,7 @@ class ProviderRepository
                 }
 
                 $manifest['when'][$provider] = $instance->when();
-            }*?/
+            }
 
             // If the service providers are not deferred, we will simply add it to an
             // array of eagerly loaded providers that will get registered on every
@@ -162,7 +162,7 @@ class ProviderRepository
             }
         }
 
-        return $this->writeManifest($manifest);*/
+        return $this->writeManifest($manifest);
 
 
     /**
