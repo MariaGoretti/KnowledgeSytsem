@@ -133,20 +133,20 @@ class ProviderRepository
      * @param  array  $providers
      * @return array
      */
-    protected function compileManifest($providers)
-    {
+    /*protected function compileManifest($providers)
+    /*{
         // The service manifest should contain a list of all of the providers for
         // the application so we can compare it on each request to the service
         // and determine if the manifest should be recompiled or is current.
         $manifest = $this->freshManifest($providers);
 
-        foreach ($providers as $provider) {
+      /*  foreach ($providers as $provider) {
             $instance = $this->createProvider($provider);
 
             // When recompiling the service manifest, we will spin through each of the
             // providers and check if it's a deferred provider or not. If so we'll
             // add it's provided services to the manifest and note the provider.
-           /* if ($instance->isDeferred()) {
+            /*if ($instance->isDeferred()) {
                 foreach ($instance->provides() as $service) {
                     $manifest['deferred'][$service] = $provider;
                 }
@@ -162,8 +162,8 @@ class ProviderRepository
             }
         }
 
-        return $this->writeManifest($manifest);
-    }
+        return $this->writeManifest($manifest);*/
+
 
     /**
      * Create a fresh service manifest data structure.
