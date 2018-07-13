@@ -163,8 +163,8 @@ class ProviderRepository
         }
 
         return $this->writeManifest($manifest);
+    }
 
-}
     /**
      * Create a fresh service manifest data structure.
      *
@@ -205,6 +205,6 @@ class ProviderRepository
      */
     public function createProvider($provider)
     {
-        //return new $provider($this->app);
+        return new $provider($this->app);
     }
 }
