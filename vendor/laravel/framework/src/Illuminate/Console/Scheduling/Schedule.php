@@ -1,76 +1,196 @@
-<?php namespace Illuminate\Console\Scheduling;
+<?php
 
-use Illuminate\Contracts\Foundation\Application;
+namespace Illuminate\Console\Scheduling;
 
-class Schedule {
+use DateTimeInterface;
+use Illuminate\Console\Application;
+use Illuminate\Container\Container;
+use Illuminate\Support\ProcessUtils;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-	/**
-	 * All of the events on the schedule.
-	 *
-	 * @var array
-	 */
-	protected $events = [];
+class Schedule
+{
+    /**
+     * All of the events on the schedule.
+     *
+     * @var \Illuminate\Console\Scheduling\Event[]
+     */
+    protected $events = [];
 
-	/**
-	 * Add a new callback event to the schedule.
-	 *
-	 * @param  string  $callback
-	 * @param  array   $parameters
-	 * @return \Illuminate\Console\Scheduling\Event
-	 */
-	public function call($callback, array $parameters = array())
-	{
-		$this->events[] = $event = new CallbackEvent($callback, $parameters);
+    /**
+     * The event mutex implementation.
+     *
+     * @var \Illuminate\Console\Scheduling\EventMutex
+     */
+    protected $eventMutex;
 
-		return $event;
-	}
+    /**
+     * The scheduling mutex implementation.
+     *
+     * @var \Illuminate\Console\Scheduling\SchedulingMutex
+     */
+    protected $schedulingMutex;
 
-	/**
-	 * Add a new Artisan command event to the schedule.
-	 *
-	 * @param  string  $command
-	 * @return \Illuminate\Console\Scheduling\Event
-	 */
-	public function command($command)
-	{
-		return $this->exec(PHP_BINARY.' artisan '.$command);
-	}
+    /**
+     * Create a new schedule instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $container = Container::getInstance();
 
-	/**
-	 * Add a new command event to the schedule.
-	 *
-	 * @param  string  $command
-	 * @return \Illuminate\Console\Scheduling\Event
-	 */
-	public function exec($command)
-	{
-		$this->events[] = $event = new Event($command);
+        $this->eventMutex = $container->bound(EventMutex::class)
+                                ? $container->make(EventMutex::class)
+                                : $container->make(CacheEventMutex::class);
 
-		return $event;
-	}
+        $this->schedulingMutex = $container->bound(SchedulingMutex::class)
+                                ? $container->make(SchedulingMutex::class)
+                                : $container->make(CacheSchedulingMutex::class);
+    }
 
-	/**
-	 * Get all of the events on the schedule.
-	 *
-	 * @return array
-	 */
-	public function events()
-	{
-		return $this->events;
-	}
+    /**
+     * Add a new callback event to the schedule.
+     *
+     * @param  string|callable  $callback
+     * @param  array   $parameters
+     * @return \Illuminate\Console\Scheduling\CallbackEvent
+     */
+    public function call($callback, array $parameters = [])
+    {
+        $this->events[] = $event = new CallbackEvent(
+            $this->eventMutex, $callback, $parameters
+        );
 
-	/**
-	 * Get all of the events on the schedule that are due.
-	 *
-	 * @param  \Illuminate\Contracts\Foundation\Application  $app
-	 * @return array
-	 */
-	public function dueEvents(Application $app)
-	{
-		return array_filter($this->events, function($event) use ($app)
-		{
-			return $event->isDue($app);
-		});
-	}
+        return $event;
+    }
 
+    /**
+     * Add a new Artisan command event to the schedule.
+     *
+     * @param  string  $command
+     * @param  array  $parameters
+     * @return \Illuminate\Console\Scheduling\Event
+     */
+    public function command($command, array $parameters = [])
+    {
+        if (class_exists($command)) {
+            $command = Container::getInstance()->make($command)->getName();
+        }
+
+        return $this->exec(
+            Application::formatCommandString($command), $parameters
+        );
+    }
+
+    /**
+     * Add a new job callback event to the schedule.
+     *
+     * @param  object|string  $job
+     * @param  string|null  $queue
+     * @return \Illuminate\Console\Scheduling\CallbackEvent
+     */
+    public function job($job, $queue = null)
+    {
+        return $this->call(function () use ($job, $queue) {
+            $job = is_string($job) ? resolve($job) : $job;
+
+            if ($job instanceof ShouldQueue) {
+                dispatch($job)->onQueue($queue);
+            } else {
+                dispatch_now($job);
+            }
+        })->name(is_string($job) ? $job : get_class($job));
+    }
+
+    /**
+     * Add a new command event to the schedule.
+     *
+     * @param  string  $command
+     * @param  array  $parameters
+     * @return \Illuminate\Console\Scheduling\Event
+     */
+    public function exec($command, array $parameters = [])
+    {
+        if (count($parameters)) {
+            $command .= ' '.$this->compileParameters($parameters);
+        }
+
+        $this->events[] = $event = new Event($this->eventMutex, $command);
+
+        return $event;
+    }
+
+    /**
+     * Compile parameters for a command.
+     *
+     * @param  array  $parameters
+     * @return string
+     */
+    protected function compileParameters(array $parameters)
+    {
+        return collect($parameters)->map(function ($value, $key) {
+            if (is_array($value)) {
+                $value = collect($value)->map(function ($value) {
+                    return ProcessUtils::escapeArgument($value);
+                })->implode(' ');
+            } elseif (! is_numeric($value) && ! preg_match('/^(-.$|--.*)/i', $value)) {
+                $value = ProcessUtils::escapeArgument($value);
+            }
+
+            return is_numeric($key) ? $value : "{$key}={$value}";
+        })->implode(' ');
+    }
+
+    /**
+     * Determine if the server is allowed to run this event.
+     *
+     * @param  \Illuminate\Console\Scheduling\Event  $event
+     * @param  \DateTimeInterface  $time
+     * @return bool
+     */
+    public function serverShouldRun(Event $event, DateTimeInterface $time)
+    {
+        return $this->schedulingMutex->create($event, $time);
+    }
+
+    /**
+     * Get all of the events on the schedule that are due.
+     *
+     * @param  \Illuminate\Contracts\Foundation\Application  $app
+     * @return \Illuminate\Support\Collection
+     */
+    public function dueEvents($app)
+    {
+        return collect($this->events)->filter->isDue($app);
+    }
+
+    /**
+     * Get all of the events on the schedule.
+     *
+     * @return \Illuminate\Console\Scheduling\Event[]
+     */
+    public function events()
+    {
+        return $this->events;
+    }
+
+    /**
+     * Specify the cache store that should be used to store mutexes.
+     *
+     * @param  string  $store
+     * @return $this
+     */
+    public function useCache($store)
+    {
+        if ($this->eventMutex instanceof CacheEventMutex) {
+            $this->eventMutex->useStore($store);
+        }
+
+        if ($this->schedulingMutex instanceof CacheSchedulingMutex) {
+            $this->schedulingMutex->useStore($store);
+        }
+
+        return $this;
+    }
 }

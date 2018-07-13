@@ -1,6 +1,6 @@
 <?php
 /*
- * This file is part of the Comparator package.
+ * This file is part of sebastian/comparator.
  *
  * (c) Sebastian Bergmann <sebastian@phpunit.de>
  *
@@ -10,16 +10,16 @@
 
 namespace SebastianBergmann\Comparator;
 
+use PHPUnit\Framework\TestCase;
+
 /**
  * @coversDefaultClass SebastianBergmann\Comparator\ResourceComparator
  *
- * @package    Comparator
- * @author     Jeff Welch <whatthejeff@gmail.com>
- * @copyright  Sebastian Bergmann <sebastian@phpunit.de>
- * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
- * @link       http://www.github.com/sebastianbergmann/comparator
+ * @uses SebastianBergmann\Comparator\Comparator
+ * @uses SebastianBergmann\Comparator\Factory
+ * @uses SebastianBergmann\Comparator\ComparisonFailure
  */
-class ResourceComparatorTest extends \PHPUnit_Framework_TestCase
+class ResourceComparatorTest extends TestCase
 {
     private $comparator;
 
@@ -30,52 +30,55 @@ class ResourceComparatorTest extends \PHPUnit_Framework_TestCase
 
     public function acceptsSucceedsProvider()
     {
-        $tmpfile1 = tmpfile();
-        $tmpfile2 = tmpfile();
+        $tmpfile1 = \tmpfile();
+        $tmpfile2 = \tmpfile();
 
-        return array(
-          array($tmpfile1, $tmpfile1),
-          array($tmpfile2, $tmpfile2),
-          array($tmpfile1, $tmpfile2)
-        );
+        return [
+          [$tmpfile1, $tmpfile1],
+          [$tmpfile2, $tmpfile2],
+          [$tmpfile1, $tmpfile2]
+        ];
     }
 
     public function acceptsFailsProvider()
     {
-        $tmpfile1 = tmpfile();
+        $tmpfile1 = \tmpfile();
 
-        return array(
-          array($tmpfile1, null),
-          array(null, $tmpfile1),
-          array(null, null)
-        );
+        return [
+          [$tmpfile1, null],
+          [null, $tmpfile1],
+          [null, null]
+        ];
     }
 
     public function assertEqualsSucceedsProvider()
     {
-        $tmpfile1 = tmpfile();
-        $tmpfile2 = tmpfile();
+        $tmpfile1 = \tmpfile();
+        $tmpfile2 = \tmpfile();
 
-        return array(
-          array($tmpfile1, $tmpfile1),
-          array($tmpfile2, $tmpfile2)
-        );
+        return [
+          [$tmpfile1, $tmpfile1],
+          [$tmpfile2, $tmpfile2]
+        ];
     }
 
     public function assertEqualsFailsProvider()
     {
-        $tmpfile1 = tmpfile();
-        $tmpfile2 = tmpfile();
+        $tmpfile1 = \tmpfile();
+        $tmpfile2 = \tmpfile();
 
-        return array(
-          array($tmpfile1, $tmpfile2),
-          array($tmpfile2, $tmpfile1)
-        );
+        return [
+          [$tmpfile1, $tmpfile2],
+          [$tmpfile2, $tmpfile1]
+        ];
     }
 
     /**
      * @covers       ::accepts
      * @dataProvider acceptsSucceedsProvider
+     *
+     * @param mixed $expected
+     * @param mixed $actual
      */
     public function testAcceptsSucceeds($expected, $actual)
     {
@@ -87,6 +90,9 @@ class ResourceComparatorTest extends \PHPUnit_Framework_TestCase
     /**
      * @covers       ::accepts
      * @dataProvider acceptsFailsProvider
+     *
+     * @param mixed $expected
+     * @param mixed $actual
      */
     public function testAcceptsFails($expected, $actual)
     {
@@ -98,6 +104,9 @@ class ResourceComparatorTest extends \PHPUnit_Framework_TestCase
     /**
      * @covers       ::assertEquals
      * @dataProvider assertEqualsSucceedsProvider
+     *
+     * @param mixed $expected
+     * @param mixed $actual
      */
     public function testAssertEqualsSucceeds($expected, $actual)
     {
@@ -105,9 +114,7 @@ class ResourceComparatorTest extends \PHPUnit_Framework_TestCase
 
         try {
             $this->comparator->assertEquals($expected, $actual);
-        }
-
-        catch (ComparisonFailure $exception) {
+        } catch (ComparisonFailure $exception) {
         }
 
         $this->assertNull($exception, 'Unexpected ComparisonFailure');
@@ -116,10 +123,14 @@ class ResourceComparatorTest extends \PHPUnit_Framework_TestCase
     /**
      * @covers       ::assertEquals
      * @dataProvider assertEqualsFailsProvider
+     *
+     * @param mixed $expected
+     * @param mixed $actual
      */
     public function testAssertEqualsFails($expected, $actual)
     {
-        $this->setExpectedException('SebastianBergmann\\Comparator\\ComparisonFailure');
+        $this->expectException(ComparisonFailure::class);
+
         $this->comparator->assertEquals($expected, $actual);
     }
 }

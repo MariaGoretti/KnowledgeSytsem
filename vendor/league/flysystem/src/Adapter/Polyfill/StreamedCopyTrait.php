@@ -24,22 +24,26 @@ trait StreamedCopyTrait
 
         $result = $this->writeStream($newpath, $response['stream'], new Config());
 
-        if (is_resource($response['stream'])) {
+        if ($result !== false && is_resource($response['stream'])) {
             fclose($response['stream']);
         }
 
-        return (boolean) $result;
+        return $result !== false;
     }
 
     // Required abstract method
 
     /**
-     * @param string $path
+     * @param  string   $path
+     * @return resource
      */
     abstract public function readStream($path);
 
     /**
-     * @param string $path
+     * @param  string   $path
+     * @param  resource $resource
+     * @param  Config   $config
+     * @return resource
      */
     abstract public function writeStream($path, $resource, Config $config);
 }

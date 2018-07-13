@@ -1,6 +1,6 @@
 <?php
 /*
- * This file is part of the Comparator package.
+ * This file is part of sebastian/comparator.
  *
  * (c) Sebastian Bergmann <sebastian@phpunit.de>
  *
@@ -12,59 +12,51 @@ namespace SebastianBergmann\Comparator;
 
 /**
  * Compares arrays for equality.
- *
- * @package    Comparator
- * @author     Bernhard Schussek <bschussek@2bepublished.at>
- * @copyright  Sebastian Bergmann <sebastian@phpunit.de>
- * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
- * @link       http://www.github.com/sebastianbergmann/comparator
  */
 class ArrayComparator extends Comparator
 {
     /**
      * Returns whether the comparator can compare two values.
      *
-     * @param  mixed $expected The first value to compare
-     * @param  mixed $actual The second value to compare
-     * @return boolean
+     * @param mixed $expected The first value to compare
+     * @param mixed $actual   The second value to compare
+     *
+     * @return bool
      */
     public function accepts($expected, $actual)
     {
-        return is_array($expected) && is_array($actual);
+        return \is_array($expected) && \is_array($actual);
     }
 
     /**
      * Asserts that two values are equal.
      *
-     * @param  mixed $expected The first value to compare
-     * @param  mixed $actual The second value to compare
-     * @param  float $delta The allowed numerical distance between two values to
-     *                      consider them equal
-     * @param  bool  $canonicalize If set to TRUE, arrays are sorted before
-     *                             comparison
-     * @param  bool  $ignoreCase If set to TRUE, upper- and lowercasing is
-     *                           ignored when comparing string values
-     * @param  array $processed
-     * @throws ComparisonFailure Thrown when the comparison
-     *                           fails. Contains information about the
-     *                           specific errors that lead to the failure.
+     * @param mixed $expected     First value to compare
+     * @param mixed $actual       Second value to compare
+     * @param float $delta        Allowed numerical distance between two values to consider them equal
+     * @param bool  $canonicalize Arrays are sorted before comparison when set to true
+     * @param bool  $ignoreCase   Case is ignored when set to true
+     * @param array $processed    List of already processed elements (used to prevent infinite recursion)
+     *
+     * @throws ComparisonFailure
      */
-    public function assertEquals($expected, $actual, $delta = 0.0, $canonicalize = false, $ignoreCase = false, array &$processed = array())
+    public function assertEquals($expected, $actual, $delta = 0.0, $canonicalize = false, $ignoreCase = false, array &$processed = [])
     {
         if ($canonicalize) {
-            sort($expected);
-            sort($actual);
+            \sort($expected);
+            \sort($actual);
         }
 
-        $remaining = $actual;
-        $expString = $actString = "Array (\n";
-        $equal     = true;
+        $remaining        = $actual;
+        $actualAsString   = "Array (\n";
+        $expectedAsString = "Array (\n";
+        $equal            = true;
 
         foreach ($expected as $key => $value) {
             unset($remaining[$key]);
 
-            if (!array_key_exists($key, $actual)) {
-                $expString .= sprintf(
+            if (!\array_key_exists($key, $actual)) {
+                $expectedAsString .= \sprintf(
                     "    %s => %s\n",
                     $this->exporter->export($key),
                     $this->exporter->shortenedExport($value)
@@ -79,31 +71,28 @@ class ArrayComparator extends Comparator
                 $comparator = $this->factory->getComparatorFor($value, $actual[$key]);
                 $comparator->assertEquals($value, $actual[$key], $delta, $canonicalize, $ignoreCase, $processed);
 
-                $expString .= sprintf(
+                $expectedAsString .= \sprintf(
                     "    %s => %s\n",
                     $this->exporter->export($key),
                     $this->exporter->shortenedExport($value)
                 );
-                $actString .= sprintf(
+
+                $actualAsString .= \sprintf(
                     "    %s => %s\n",
                     $this->exporter->export($key),
                     $this->exporter->shortenedExport($actual[$key])
                 );
             } catch (ComparisonFailure $e) {
-                $expString .= sprintf(
+                $expectedAsString .= \sprintf(
                     "    %s => %s\n",
                     $this->exporter->export($key),
-                    $e->getExpectedAsString()
-                    ? $this->indent($e->getExpectedAsString())
-                    : $this->exporter->shortenedExport($e->getExpected())
+                    $e->getExpectedAsString() ? $this->indent($e->getExpectedAsString()) : $this->exporter->shortenedExport($e->getExpected())
                 );
 
-                $actString .= sprintf(
+                $actualAsString .= \sprintf(
                     "    %s => %s\n",
                     $this->exporter->export($key),
-                    $e->getActualAsString()
-                    ? $this->indent($e->getActualAsString())
-                    : $this->exporter->shortenedExport($e->getActual())
+                    $e->getActualAsString() ? $this->indent($e->getActualAsString()) : $this->exporter->shortenedExport($e->getActual())
                 );
 
                 $equal = false;
@@ -111,7 +100,7 @@ class ArrayComparator extends Comparator
         }
 
         foreach ($remaining as $key => $value) {
-            $actString .= sprintf(
+            $actualAsString .= \sprintf(
                 "    %s => %s\n",
                 $this->exporter->export($key),
                 $this->exporter->shortenedExport($value)
@@ -120,15 +109,15 @@ class ArrayComparator extends Comparator
             $equal = false;
         }
 
-        $expString .= ')';
-        $actString .= ')';
+        $expectedAsString .= ')';
+        $actualAsString .= ')';
 
         if (!$equal) {
             throw new ComparisonFailure(
                 $expected,
                 $actual,
-                $expString,
-                $actString,
+                $expectedAsString,
+                $actualAsString,
                 false,
                 'Failed asserting that two arrays are equal.'
             );
@@ -137,6 +126,6 @@ class ArrayComparator extends Comparator
 
     protected function indent($lines)
     {
-        return trim(str_replace("\n", "\n    ", $lines));
+        return \trim(\str_replace("\n", "\n    ", $lines));
     }
 }

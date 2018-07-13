@@ -7,19 +7,12 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
+namespace PHPUnit\Framework;
 
 /**
  * An incomplete test case
- *
- * @package    PHPUnit
- * @subpackage Framework
- * @author     Davey Shafik <me@daveyshafik.com>
- * @copyright  Sebastian Bergmann <sebastian@phpunit.de>
- * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
- * @link       http://www.phpunit.de/
- * @since      Class available since Release 4.3.0
  */
-class PHPUnit_Framework_IncompleteTestCase extends PHPUnit_Framework_TestCase
+class IncompleteTestCase extends TestCase
 {
     /**
      * @var string
@@ -27,51 +20,38 @@ class PHPUnit_Framework_IncompleteTestCase extends PHPUnit_Framework_TestCase
     protected $message = '';
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $backupGlobals = false;
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $backupStaticAttributes = false;
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $runTestInSeparateProcess = false;
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $useErrorHandler = false;
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $useOutputBuffering = false;
 
-    /**
-     * @param string $message
-     */
-    public function __construct($className, $methodName, $message = '')
+    public function __construct(string $className, string $methodName, string $message = '')
     {
-        $this->message = $message;
         parent::__construct($className . '::' . $methodName);
+
+        $this->message = $message;
     }
 
-    /**
-     * @throws PHPUnit_Framework_Exception
-     */
-    protected function runTest()
-    {
-        $this->markTestIncomplete($this->message);
-    }
-
-    /**
-     * @return string
-     */
-    public function getMessage()
+    public function getMessage(): string
     {
         return $this->message;
     }
@@ -79,10 +59,18 @@ class PHPUnit_Framework_IncompleteTestCase extends PHPUnit_Framework_TestCase
     /**
      * Returns a string representation of the test case.
      *
-     * @return string
+     * @throws \SebastianBergmann\RecursionContext\InvalidArgumentException
      */
-    public function toString()
+    public function toString(): string
     {
         return $this->getName();
+    }
+
+    /**
+     * @throws Exception
+     */
+    protected function runTest(): void
+    {
+        $this->markTestIncomplete($this->message);
     }
 }

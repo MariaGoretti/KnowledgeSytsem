@@ -1,267 +1,278 @@
-<?php namespace Illuminate\Queue\Jobs;
+<?php
 
-use DateTime;
+namespace Illuminate\Queue\Jobs;
 
-abstract class Job {
+use Illuminate\Support\InteractsWithTime;
 
-	/**
-	 * The job handler instance.
-	 *
-	 * @var mixed
-	 */
-	protected $instance;
+abstract class Job
+{
+    use InteractsWithTime;
 
-	/**
-	 * The IoC container instance.
-	 *
-	 * @var \Illuminate\Container\Container
-	 */
-	protected $container;
+    /**
+     * The job handler instance.
+     *
+     * @var mixed
+     */
+    protected $instance;
 
-	/**
-	 * The name of the queue the job belongs to.
-	 *
-	 * @var string
-	 */
-	protected $queue;
+    /**
+     * The IoC container instance.
+     *
+     * @var \Illuminate\Container\Container
+     */
+    protected $container;
 
-	/**
-	 * Indicates if the job has been deleted.
-	 *
-	 * @var bool
-	 */
-	protected $deleted = false;
+    /**
+     * Indicates if the job has been deleted.
+     *
+     * @var bool
+     */
+    protected $deleted = false;
 
-	/**
-	 * Indicates if the job has been released.
-	 *
-	 * @var bool
-	 */
-	protected $released = false;
+    /**
+     * Indicates if the job has been released.
+     *
+     * @var bool
+     */
+    protected $released = false;
 
-	/**
-	 * Fire the job.
-	 *
-	 * @return void
-	 */
-	abstract public function fire();
+    /**
+     * Indicates if the job has failed.
+     *
+     * @var bool
+     */
+    protected $failed = false;
 
-	/**
-	 * Delete the job from the queue.
-	 *
-	 * @return void
-	 */
-	public function delete()
-	{
-		$this->deleted = true;
-	}
+    /**
+     * The name of the connection the job belongs to.
+     */
+    protected $connectionName;
 
-	/**
-	 * Determine if the job has been deleted.
-	 *
-	 * @return bool
-	 */
-	public function isDeleted()
-	{
-		return $this->deleted;
-	}
+    /**
+     * The name of the queue the job belongs to.
+     *
+     * @var string
+     */
+    protected $queue;
 
-	/**
-	 * Release the job back into the queue.
-	 *
-	 * @param  int   $delay
-	 * @return void
-	 */
-	public function release($delay = 0)
-	{
-		$this->released = true;
-	}
+    /**
+     * Get the job identifier.
+     *
+     * @return string
+     */
+    abstract public function getJobId();
 
-	/**
-	 * Determine if the job was released back into the queue.
-	 *
-	 * @return bool
-	 */
-	public function isReleased()
-	{
-		return $this->released;
-	}
+    /**
+     * Get the raw body of the job.
+     *
+     * @return string
+     */
+    abstract public function getRawBody();
 
-	/**
-	 * Determine if the job has been deleted or released.
-	 *
-	 * @return bool
-	 */
-	public function isDeletedOrReleased()
-	{
-		return $this->isDeleted() || $this->isReleased();
-	}
+    /**
+     * Fire the job.
+     *
+     * @return void
+     */
+    public function fire()
+    {
+        $payload = $this->payload();
 
-	/**
-	 * Get the number of times the job has been attempted.
-	 *
-	 * @return int
-	 */
-	abstract public function attempts();
+        list($class, $method) = JobName::parse($payload['job']);
 
-	/**
-	 * Get the raw body string for the job.
-	 *
-	 * @return string
-	 */
-	abstract public function getRawBody();
+        ($this->instance = $this->resolve($class))->{$method}($this, $payload['data']);
+    }
 
-	/**
-	 * Resolve and fire the job handler method.
-	 *
-	 * @param  array  $payload
-	 * @return void
-	 */
-	protected function resolveAndFire(array $payload)
-	{
-		list($class, $method) = $this->parseJob($payload['job']);
+    /**
+     * Delete the job from the queue.
+     *
+     * @return void
+     */
+    public function delete()
+    {
+        $this->deleted = true;
+    }
 
-		$this->instance = $this->resolve($class);
+    /**
+     * Determine if the job has been deleted.
+     *
+     * @return bool
+     */
+    public function isDeleted()
+    {
+        return $this->deleted;
+    }
 
-		$this->instance->{$method}($this, $this->resolveQueueableEntities($payload['data']));
-	}
+    /**
+     * Release the job back into the queue.
+     *
+     * @param  int   $delay
+     * @return void
+     */
+    public function release($delay = 0)
+    {
+        $this->released = true;
+    }
 
-	/**
-	 * Parse the job declaration into class and method.
-	 *
-	 * @param  string  $job
-	 * @return array
-	 */
-	protected function parseJob($job)
-	{
-		$segments = explode('@', $job);
+    /**
+     * Determine if the job was released back into the queue.
+     *
+     * @return bool
+     */
+    public function isReleased()
+    {
+        return $this->released;
+    }
 
-		return count($segments) > 1 ? $segments : array($segments[0], 'fire');
-	}
+    /**
+     * Determine if the job has been deleted or released.
+     *
+     * @return bool
+     */
+    public function isDeletedOrReleased()
+    {
+        return $this->isDeleted() || $this->isReleased();
+    }
 
-	/**
-	 * Resolve the given job handler.
-	 *
-	 * @param  string  $class
-	 * @return mixed
-	 */
-	protected function resolve($class)
-	{
-		return $this->container->make($class);
-	}
+    /**
+     * Determine if the job has been marked as a failure.
+     *
+     * @return bool
+     */
+    public function hasFailed()
+    {
+        return $this->failed;
+    }
 
-	/**
-	 * Resolve all of the queueable entities in the given payload.
-	 *
-	 * @param  mixed  $data
-	 * @return mixed
-	 */
-	protected function resolveQueueableEntities($data)
-	{
-		if (is_string($data))
-		{
-			return $this->resolveQueueableEntity($data);
-		}
+    /**
+     * Mark the job as "failed".
+     *
+     * @return void
+     */
+    public function markAsFailed()
+    {
+        $this->failed = true;
+    }
 
-		if (is_array($data))
-		{
-			array_walk($data, function(&$d) { $d = $this->resolveQueueableEntity($d); });
-		}
+    /**
+     * Process an exception that caused the job to fail.
+     *
+     * @param  \Exception  $e
+     * @return void
+     */
+    public function failed($e)
+    {
+        $this->markAsFailed();
 
-		return $data;
-	}
+        $payload = $this->payload();
 
-	/**
-	 * Resolve a single queueable entity from the resolver.
-	 *
-	 * @param  mixed  $value
-	 * @return \Illuminate\Contracts\Queue\QueueableEntity
-	 */
-	protected function resolveQueueableEntity($value)
-	{
-		if (is_string($value) and starts_with($value, '::entity::'))
-		{
-			list($marker, $type, $id) = explode('|', $value, 3);
+        list($class, $method) = JobName::parse($payload['job']);
 
-			return $this->getEntityResolver()->resolve($type, $id);
-		}
+        if (method_exists($this->instance = $this->resolve($class), 'failed')) {
+            $this->instance->failed($payload['data'], $e);
+        }
+    }
 
-		return $value;
-	}
+    /**
+     * Resolve the given class.
+     *
+     * @param  string  $class
+     * @return mixed
+     */
+    protected function resolve($class)
+    {
+        return $this->container->make($class);
+    }
 
-	/**
-	 * Call the failed method on the job instance.
-	 *
-	 * @return void
-	 */
-	public function failed()
-	{
-		$payload = json_decode($this->getRawBody(), true);
+    /**
+     * Get the decoded body of the job.
+     *
+     * @return array
+     */
+    public function payload()
+    {
+        return json_decode($this->getRawBody(), true);
+    }
 
-		list($class, $method) = $this->parseJob($payload['job']);
+    /**
+     * Get the number of times to attempt a job.
+     *
+     * @return int|null
+     */
+    public function maxTries()
+    {
+        return $this->payload()['maxTries'] ?? null;
+    }
 
-		$this->instance = $this->resolve($class);
+    /**
+     * Get the number of seconds the job can run.
+     *
+     * @return int|null
+     */
+    public function timeout()
+    {
+        return $this->payload()['timeout'] ?? null;
+    }
 
-		if (method_exists($this->instance, 'failed'))
-		{
-			$this->instance->failed($this->resolveQueueableEntities($payload['data']));
-		}
-	}
+    /**
+     * Get the timestamp indicating when the job should timeout.
+     *
+     * @return int|null
+     */
+    public function timeoutAt()
+    {
+        return $this->payload()['timeoutAt'] ?? null;
+    }
 
-	/**
-	 * Get an entity resolver instance.
-	 *
-	 * @return \Illuminate\Contracts\Queue\EntityResolver
-	 */
-	protected function getEntityResolver()
-	{
-		return $this->container->make('Illuminate\Contracts\Queue\EntityResolver');
-	}
+    /**
+     * Get the name of the queued job class.
+     *
+     * @return string
+     */
+    public function getName()
+    {
+        return $this->payload()['job'];
+    }
 
-	/**
-	 * Calculate the number of seconds with the given delay.
-	 *
-	 * @param  \DateTime|int  $delay
-	 * @return int
-	 */
-	protected function getSeconds($delay)
-	{
-		if ($delay instanceof DateTime)
-		{
-			return max(0, $delay->getTimestamp() - $this->getTime());
-		}
+    /**
+     * Get the resolved name of the queued job class.
+     *
+     * Resolves the name of "wrapped" jobs such as class-based handlers.
+     *
+     * @return string
+     */
+    public function resolveName()
+    {
+        return JobName::resolve($this->getName(), $this->payload());
+    }
 
-		return (int) $delay;
-	}
+    /**
+     * Get the name of the connection the job belongs to.
+     *
+     * @return string
+     */
+    public function getConnectionName()
+    {
+        return $this->connectionName;
+    }
 
-	/**
-	 * Get the current system time.
-	 *
-	 * @return int
-	 */
-	protected function getTime()
-	{
-		return time();
-	}
+    /**
+     * Get the name of the queue the job belongs to.
+     *
+     * @return string
+     */
+    public function getQueue()
+    {
+        return $this->queue;
+    }
 
-	/**
-	 * Get the name of the queued job class.
-	 *
-	 * @return string
-	 */
-	public function getName()
-	{
-		return json_decode($this->getRawBody(), true)['job'];
-	}
-
-	/**
-	 * Get the name of the queue the job belongs to.
-	 *
-	 * @return string
-	 */
-	public function getQueue()
-	{
-		return $this->queue;
-	}
-
+    /**
+     * Get the service container instance.
+     *
+     * @return \Illuminate\Container\Container
+     */
+    public function getContainer()
+    {
+        return $this->container;
+    }
 }
