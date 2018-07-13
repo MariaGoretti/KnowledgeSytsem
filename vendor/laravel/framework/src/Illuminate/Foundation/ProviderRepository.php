@@ -164,7 +164,7 @@ class ProviderRepository
 
         return $this->writeManifest($manifest);
 
-
+}
     /**
      * Create a fresh service manifest data structure.
      *
